@@ -69,6 +69,10 @@ export class WebRTCManager {
   private makingOffer = false;
   private ignoreOffer = false;
 
+  // Only the initiator creates offers, and only once a peer is in the room.
+  private isInitiator = false;
+  private peerPresent = false;
+
   private isScreenSharing = false;
   private closed = false;
 
@@ -95,10 +99,45 @@ export class WebRTCManager {
    * non-initiator is "polite" and yields on offer collisions.
    */
   start(initiator: boolean): void {
+    this.isInitiator = initiator;
     this.polite = !initiator;
+    // Suppress the automatic initial offer until a peer is confirmed present.
+    // The initiator opens negotiation via notifyPeerJoined(); the guest waits
+    // for that offer and marks the peer present when it arrives.
+    this.peerPresent = false;
     this.createPeerConnection();
     this.attachSignalingHandlers();
     this.addLocalTracks();
+  }
+
+  /**
+   * Called when the second participant has joined. Only the initiator drives
+   * the initial offer, and only once the peer is present — otherwise an offer
+   * created while alone leaves signaling in a non-stable state and blocks the
+   * peer's later offer.
+   */
+  notifyPeerJoined(): void {
+    this.peerPresent = true;
+    if (this.isInitiator) {
+      void this.createAndSendOffer();
+    }
+  }
+
+  private async createAndSendOffer(): Promise<void> {
+    const pc = this.pc;
+    if (!pc || this.closed) return;
+    try {
+      this.makingOffer = true;
+      await pc.setLocalDescription();
+      this.socket.emit('offer', {
+        roomId: this.roomId,
+        data: pc.localDescription,
+      });
+    } catch {
+      this.events.onError?.('Failed to create offer.');
+    } finally {
+      this.makingOffer = false;
+    }
   }
 
   private createPeerConnection(): void {
@@ -129,6 +168,11 @@ export class WebRTCManager {
     };
 
     pc.onnegotiationneeded = async () => {
+      // Suppress offers while we're alone in the room. If the initiator emits
+      // an offer before the peer arrives, it never reaches anyone yet leaves
+      // signalingState in "have-local-offer", which then causes it to ignore
+      // the peer's later offer — deadlocking on "Connecting…".
+      if (!this.peerPresent) return;
       try {
         this.makingOffer = true;
         await pc.setLocalDescription();
@@ -215,6 +259,9 @@ export class WebRTCManager {
     const pc = this.pc;
     if (!pc || !data) return;
     const description = data as RTCSessionDescriptionInit;
+
+    // Receiving an offer means the peer is present; allow future renegotiation.
+    this.peerPresent = true;
 
     const offerCollision =
       description.type === 'offer' &&

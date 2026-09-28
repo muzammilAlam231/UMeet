@@ -17,7 +17,9 @@ export function createSignalingSocket(): SignalingSocket {
 
   return io(url, {
     autoConnect: false,
-    transports: ['websocket'],
+    // Prefer WebSocket but allow polling as a fallback so the handshake still
+    // completes on hosts/networks where a direct WebSocket upgrade is blocked.
+    transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,

@@ -176,8 +176,10 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
     const onParticipantJoined = (p: ParticipantInfo) => {
       setPeer(p);
       setPhase('connecting');
-      // The initiator's onnegotiationneeded fires automatically once tracks are
-      // present; nothing else required here.
+      // We are the initiator (already in the room). Kick off negotiation now
+      // that a peer is present. Offers are suppressed while alone, so this is
+      // what actually starts the WebRTC handshake.
+      manager.notifyPeerJoined();
     };
 
     const onParticipantLeft = () => {
