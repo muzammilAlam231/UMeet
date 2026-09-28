@@ -38,6 +38,10 @@ export class RoomManager {
     return !!room && room.participants.size >= MAX_PARTICIPANTS;
   }
 
+  size(roomId: RoomId): number {
+    return this.rooms.get(roomId)?.participants.size ?? 0;
+  }
+
   /**
    * Attempt to add a participant. Returns the existing peer (if any) so the
    * caller can wire up signaling, or null when the room was empty.

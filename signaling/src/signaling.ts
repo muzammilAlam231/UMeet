@@ -25,6 +25,9 @@ export function registerSignaling(io: IOServer, socket: IOSocket): void {
   socket.data.roomId = null;
   socket.data.displayName = 'Guest';
 
+  // eslint-disable-next-line no-console
+  console.log(`[socket] connected: ${socket.id}`);
+
   socket.on('join-room', ({ roomId, displayName }) => {
     if (!RoomManager.isValidRoomId(roomId)) {
       socket.emit('join-error', {
@@ -52,6 +55,9 @@ export function registerSignaling(io: IOServer, socket: IOSocket): void {
     });
 
     socket.join(roomId);
+
+    // eslint-disable-next-line no-console
+    console.log(`[room ${roomId}] "${name}" joined (${socket.id}) — initiator=${isInitiator}, size=${rooms.size(roomId)}`);
 
     socket.emit('joined', {
       roomId,
