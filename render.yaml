@@ -1,0 +1,14 @@
+# Render Blueprint for the UMeet signaling server.
+# Render auto-detects this file when you create a Blueprint from the repo.
+services:
+  - type: web
+    name: umeet-signaling
+    runtime: node
+    rootDir: signaling
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: CORS_ORIGIN
+        sync: false # set to your Vercel frontend URL, e.g. https://umeet.vercel.app
