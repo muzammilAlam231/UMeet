@@ -30,6 +30,13 @@ export interface SignalPayload {
   data: unknown;
 }
 
+export interface ChatMessageBroadcast {
+  socketId: string;
+  displayName: string;
+  text: string;
+  timestamp: number;
+}
+
 export interface ServerToClientEvents {
   joined: (payload: JoinedPayload) => void;
   'join-error': (payload: JoinErrorPayload) => void;
@@ -39,6 +46,7 @@ export interface ServerToClientEvents {
   answer: (payload: SignalPayload) => void;
   'ice-candidate': (payload: SignalPayload) => void;
   'connection-status': (payload: { socketId: string; status: string }) => void;
+  'chat-message': (payload: ChatMessageBroadcast) => void;
 }
 
 export interface ClientToServerEvents {
@@ -48,4 +56,5 @@ export interface ClientToServerEvents {
   answer: (payload: SignalPayload) => void;
   'ice-candidate': (payload: SignalPayload) => void;
   'connection-status': (payload: { roomId: RoomId; status: string }) => void;
+  'chat-message': (payload: { roomId: RoomId; text: string }) => void;
 }

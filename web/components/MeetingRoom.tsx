@@ -8,6 +8,7 @@ import { MeetingControls } from '@/components/MeetingControls';
 import { ConnectionStatus } from '@/components/ConnectionStatus';
 import { DeviceSelector } from '@/components/DeviceSelector';
 import { PermissionError } from '@/components/PermissionError';
+import { ChatPanel } from '@/components/ChatPanel';
 import { Button } from '@/components/ui/Button';
 import { ToastContainer, useToasts } from '@/components/Toast';
 import { useMeeting } from '@/hooks/useMeeting';
@@ -30,6 +31,7 @@ export function MeetingRoom({ roomId, prejoin, onEnded }: MeetingRoomProps) {
   const router = useRouter();
   const { toasts, push } = useToasts();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   const [devices, setDevices] = useState<DeviceList>({
     audioInputs: [],
     videoInputs: [],
@@ -53,6 +55,12 @@ export function MeetingRoom({ roomId, prejoin, onEnded }: MeetingRoomProps) {
     videoEnabled,
     isScreenSharing,
     remoteScreenSharing,
+    localSpeaking,
+    remoteSpeaking,
+    messages,
+    unreadCount,
+    sendMessage,
+    markChatRead,
     toggleAudio,
     toggleVideo,
     toggleScreenShare,
@@ -100,6 +108,10 @@ export function MeetingRoom({ roomId, prejoin, onEnded }: MeetingRoomProps) {
   }, [phase, onEnded]);
 
   useEffect(() => {
+    markChatRead(chatOpen);
+  }, [chatOpen, markChatRead]);
+
+  useEffect(() => {
     void listDevices().then(setDevices);
   }, [settingsOpen]);
 
@@ -126,13 +138,18 @@ export function MeetingRoom({ roomId, prejoin, onEnded }: MeetingRoomProps) {
       <ToastContainer toasts={toasts} />
 
       {/* Header */}
-      <div className="absolute top-0 inset-x-0 z-20 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-300 font-mono glass rounded-lg px-2 py-1">
+      <div className="absolute top-0 inset-x-0 z-20 p-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-medium text-slate-300 font-mono glass rounded-lg px-2 py-1 shrink-0">
             {roomId}
           </span>
+          {peer && (
+            <span className="text-sm text-slate-200 glass rounded-full px-3 py-1 truncate max-w-[9rem] sm:max-w-none">
+              {peer.displayName}
+            </span>
+          )}
           {isScreenSharing && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400 glass rounded-full px-3 py-1">
+            <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-emerald-400 glass rounded-full px-3 py-1 shrink-0">
               <MonitorUp className="w-3.5 h-3.5" aria-hidden="true" /> Sharing your
               screen
             </span>
@@ -150,6 +167,7 @@ export function MeetingRoom({ roomId, prejoin, onEnded }: MeetingRoomProps) {
             className="w-full h-full"
             videoEnabled
             audioEnabled
+            speaking={remoteSpeaking}
           />
         ) : (
           <div className="w-full h-full grid place-items-center text-center px-6">
@@ -158,7 +176,11 @@ export function MeetingRoom({ roomId, prejoin, onEnded }: MeetingRoomProps) {
                 <span className="text-2xl">👋</span>
               </div>
               <h2 className="text-lg font-medium">
-                {waiting ? 'Waiting for the other participant' : 'Connecting…'}
+                {peer
+                  ? `Connecting to ${peer.displayName}…`
+                  : waiting
+                    ? 'Waiting for the other participant'
+                    : 'Connecting…'}
               </h2>
               <p className="text-sm text-slate-400 mt-1">
                 Share the meeting link so someone can join.
@@ -178,6 +200,7 @@ export function MeetingRoom({ roomId, prejoin, onEnded }: MeetingRoomProps) {
           isLocal
           videoEnabled={videoEnabled || isScreenSharing}
           audioEnabled={audioEnabled}
+          speaking={localSpeaking}
           className="w-full h-full"
         />
       </div>
@@ -189,13 +212,24 @@ export function MeetingRoom({ roomId, prejoin, onEnded }: MeetingRoomProps) {
           videoEnabled={videoEnabled}
           isScreenSharing={isScreenSharing}
           screenShareSupported={!!caps?.screenShare}
+          unreadCount={unreadCount}
           onToggleAudio={toggleAudio}
           onToggleVideo={toggleVideo}
           onToggleScreenShare={() => void toggleScreenShare()}
           onOpenSettings={() => setSettingsOpen(true)}
+          onToggleChat={() => setChatOpen((v) => !v)}
           onLeave={leave}
         />
       </div>
+
+      {/* Chat panel */}
+      <ChatPanel
+        open={chatOpen}
+        messages={messages}
+        peerName={peer?.displayName}
+        onClose={() => setChatOpen(false)}
+        onSend={sendMessage}
+      />
 
       {/* Settings drawer */}
       {settingsOpen && (

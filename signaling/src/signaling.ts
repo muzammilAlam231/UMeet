@@ -98,6 +98,21 @@ export function registerSignaling(io: IOServer, socket: IOSocket): void {
     socket.to(roomId).emit('connection-status', { socketId: socket.id, status });
   });
 
+  socket.on('chat-message', ({ roomId, text }) => {
+    if (!RoomManager.isValidRoomId(roomId) || !rooms.isMember(roomId, socket.id)) {
+      return;
+    }
+    const trimmed = typeof text === 'string' ? text.trim().slice(0, 2000) : '';
+    if (!trimmed) return;
+    // Echo to the whole room (including sender) so both sides share one log.
+    io.to(roomId).emit('chat-message', {
+      socketId: socket.id,
+      displayName: socket.data.displayName,
+      text: trimmed,
+      timestamp: Date.now(),
+    });
+  });
+
   const handleLeave = () => {
     const roomId = socket.data.roomId;
     if (!roomId) return;

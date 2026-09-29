@@ -2,12 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createSignalingSocket, type SignalingSocket } from '@/lib/signaling/client';
-import type { JoinErrorPayload, JoinedPayload, ParticipantInfo } from '@/lib/signaling/types';
+import type {
+  ChatMessageBroadcast,
+  JoinErrorPayload,
+  JoinedPayload,
+  ParticipantInfo,
+} from '@/lib/signaling/types';
 import {
   WebRTCManager,
   type WebRTCConnectionState,
 } from '@/lib/webrtc/WebRTCManager';
 import { getLocalStream, MediaError } from '@/lib/webrtc/media';
+import { createSpeakingDetector } from '@/lib/webrtc/speaking';
 
 export type MeetingPhase =
   | 'idle'
@@ -17,6 +23,15 @@ export type MeetingPhase =
   | 'reconnecting'
   | 'ended'
   | 'error';
+
+export interface ChatMessage {
+  id: string;
+  socketId: string;
+  displayName: string;
+  text: string;
+  timestamp: number;
+  self: boolean;
+}
 
 export interface MeetingErrorState {
   title: string;
@@ -45,6 +60,12 @@ export interface UseMeetingResult {
   videoEnabled: boolean;
   isScreenSharing: boolean;
   remoteScreenSharing: boolean;
+  localSpeaking: boolean;
+  remoteSpeaking: boolean;
+  messages: ChatMessage[];
+  unreadCount: number;
+  sendMessage: (text: string) => void;
+  markChatRead: (open: boolean) => void;
   toggleAudio: () => void;
   toggleVideo: () => void;
   toggleScreenShare: () => Promise<void>;
@@ -80,10 +101,17 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
   const [videoEnabled, setVideoEnabled] = useState(startWithVideo);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
+  const [localSpeaking, setLocalSpeaking] = useState(false);
+  const [remoteSpeaking, setRemoteSpeaking] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const socketRef = useRef<SignalingSocket | null>(null);
   const managerRef = useRef<WebRTCManager | null>(null);
   const leftRef = useRef(false);
+  const localSpeakingCleanupRef = useRef<(() => void) | null>(null);
+  const remoteSpeakingCleanupRef = useRef<(() => void) | null>(null);
+  const chatOpenRef = useRef(false);
   const devicesRef = useRef({
     audioDeviceId: opts.audioDeviceId,
     videoDeviceId: opts.videoDeviceId,
@@ -92,6 +120,9 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
   const leave = useCallback(() => {
     if (leftRef.current) return;
     leftRef.current = true;
+
+    localSpeakingCleanupRef.current?.();
+    remoteSpeakingCleanupRef.current?.();
 
     const socket = socketRef.current;
     if (socket) {
@@ -126,7 +157,15 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
     setPhase('connecting');
 
     const manager = new WebRTCManager(socket, roomId, {
-      onRemoteStream: (stream) => setRemoteStream(stream),
+      onRemoteStream: (stream) => {
+        setRemoteStream(stream);
+        // Attach a speaking detector to the remote stream.
+        remoteSpeakingCleanupRef.current?.();
+        remoteSpeakingCleanupRef.current = createSpeakingDetector(
+          stream,
+          (speaking) => setRemoteSpeaking(speaking),
+        );
+      },
       onConnectionStateChange: (state) => {
         setConnectionState(state);
         if (state === 'connected') setPhase('connected');
@@ -146,6 +185,12 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
     });
     manager.setLocalStream(initialStream);
     managerRef.current = manager;
+
+    // Detect when the local user is speaking (for the "you" indicator).
+    localSpeakingCleanupRef.current = createSpeakingDetector(
+      initialStream,
+      (speaking) => setLocalSpeaking(speaking),
+    );
 
     const onConnect = () => {
       socket.emit('join-room', { roomId, displayName });
@@ -186,7 +231,29 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
       setPeer(null);
       setRemoteStream(null);
       setRemoteScreenSharing(false);
+      setRemoteSpeaking(false);
+      remoteSpeakingCleanupRef.current?.();
+      remoteSpeakingCleanupRef.current = null;
       setPhase('waiting');
+    };
+
+    const onChatMessage = (payload: ChatMessageBroadcast) => {
+      const self = payload.socketId === socket.id;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `${payload.socketId}-${payload.timestamp}-${prev.length}`,
+          socketId: payload.socketId,
+          displayName: payload.displayName,
+          text: payload.text,
+          timestamp: payload.timestamp,
+          self,
+        },
+      ]);
+      // Count unread only for incoming messages while the panel is closed.
+      if (!self && !chatOpenRef.current) {
+        setUnreadCount((n) => n + 1);
+      }
     };
 
     socket.on('connect', onConnect);
@@ -194,6 +261,7 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
     socket.on('join-error', onJoinError);
     socket.on('participant-joined', onParticipantJoined);
     socket.on('participant-left', onParticipantLeft);
+    socket.on('chat-message', onChatMessage);
     socket.on('connect_error', () => {
       setError({
         title: 'Server unavailable',
@@ -211,6 +279,9 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
       socket.off('join-error', onJoinError);
       socket.off('participant-joined', onParticipantJoined);
       socket.off('participant-left', onParticipantLeft);
+      socket.off('chat-message', onChatMessage);
+      localSpeakingCleanupRef.current?.();
+      remoteSpeakingCleanupRef.current?.();
       if (!leftRef.current) {
         manager.close();
         socket.disconnect();
@@ -233,6 +304,20 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
       managerRef.current?.toggleVideo(next);
       return next;
     });
+  }, []);
+
+  const sendMessage = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      socketRef.current?.emit('chat-message', { roomId, text: trimmed });
+    },
+    [roomId],
+  );
+
+  const markChatRead = useCallback((open: boolean) => {
+    chatOpenRef.current = open;
+    if (open) setUnreadCount(0);
   }, []);
 
   const toggleScreenShare = useCallback(async () => {
@@ -324,6 +409,12 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
     videoEnabled,
     isScreenSharing,
     remoteScreenSharing,
+    localSpeaking,
+    remoteSpeaking,
+    messages,
+    unreadCount,
+    sendMessage,
+    markChatRead,
     toggleAudio,
     toggleVideo,
     toggleScreenShare,

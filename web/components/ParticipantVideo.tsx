@@ -11,6 +11,7 @@ interface ParticipantVideoProps {
   isLocal?: boolean;
   videoEnabled?: boolean;
   audioEnabled?: boolean;
+  speaking?: boolean;
   className?: string;
 }
 
@@ -25,6 +26,7 @@ export function ParticipantVideo({
   mirror = false,
   videoEnabled = true,
   audioEnabled = true,
+  speaking = false,
   className = '',
 }: ParticipantVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -48,10 +50,24 @@ export function ParticipantVideo({
         }`}
       />
 
+      {/* Speaking highlight ring. */}
+      {speaking && audioEnabled && (
+        <div
+          className="absolute inset-0 rounded-[inherit] ring-2 ring-emerald-400 ring-inset pointer-events-none animate-pulse"
+          aria-hidden="true"
+        />
+      )}
+
       {!videoEnabled && (
         <div className="absolute inset-0 grid place-items-center">
           <div className="flex flex-col items-center gap-2 text-slate-400">
-            <div className="w-16 h-16 rounded-full bg-white/10 grid place-items-center">
+            <div
+              className={`w-16 h-16 rounded-full grid place-items-center transition-shadow ${
+                speaking && audioEnabled
+                  ? 'bg-emerald-500/20 shadow-[0_0_0_3px_rgba(52,211,153,0.6)]'
+                  : 'bg-white/10'
+              }`}
+            >
               <User className="w-8 h-8" aria-hidden="true" />
             </div>
             <span className="text-sm">{name}</span>
@@ -65,6 +81,13 @@ export function ParticipantVideo({
         )}
         {!videoEnabled && (
           <VideoOff className="w-3.5 h-3.5 text-red-400" aria-label="Camera off" />
+        )}
+        {speaking && audioEnabled && (
+          <span className="flex items-end gap-[2px] h-3" aria-label="Speaking">
+            <span className="w-[3px] bg-emerald-400 rounded-full animate-[pulse_0.8s_ease-in-out_infinite] h-1.5" />
+            <span className="w-[3px] bg-emerald-400 rounded-full animate-[pulse_0.8s_ease-in-out_infinite_0.2s] h-3" />
+            <span className="w-[3px] bg-emerald-400 rounded-full animate-[pulse_0.8s_ease-in-out_infinite_0.4s] h-2" />
+          </span>
         )}
         <span className="text-xs text-slate-200 truncate max-w-[8rem]">{name}</span>
       </div>

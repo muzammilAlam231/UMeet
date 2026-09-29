@@ -41,6 +41,18 @@ export interface JoinedPayload {
   self: ParticipantInfo;
 }
 
+export interface ChatMessagePayload {
+  roomId: RoomId;
+  text: string;
+}
+
+export interface ChatMessageBroadcast {
+  socketId: string;
+  displayName: string;
+  text: string;
+  timestamp: number;
+}
+
 /** Client -> Server events. */
 export interface ClientToServerEvents {
   'join-room': (payload: JoinRoomPayload) => void;
@@ -49,6 +61,7 @@ export interface ClientToServerEvents {
   answer: (payload: SignalPayload) => void;
   'ice-candidate': (payload: SignalPayload) => void;
   'connection-status': (payload: { roomId: RoomId; status: string }) => void;
+  'chat-message': (payload: ChatMessagePayload) => void;
 }
 
 /** Server -> Client events. */
@@ -61,6 +74,7 @@ export interface ServerToClientEvents {
   answer: (payload: SignalPayload) => void;
   'ice-candidate': (payload: SignalPayload) => void;
   'connection-status': (payload: { socketId: string; status: string }) => void;
+  'chat-message': (payload: ChatMessageBroadcast) => void;
 }
 
 export interface SocketData {

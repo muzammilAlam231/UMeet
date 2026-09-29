@@ -9,6 +9,7 @@ import {
   MonitorX,
   PhoneOff,
   Settings,
+  MessageSquare,
 } from 'lucide-react';
 
 interface MeetingControlsProps {
@@ -16,10 +17,12 @@ interface MeetingControlsProps {
   videoEnabled: boolean;
   isScreenSharing: boolean;
   screenShareSupported: boolean;
+  unreadCount?: number;
   onToggleAudio: () => void;
   onToggleVideo: () => void;
   onToggleScreenShare: () => void;
   onOpenSettings: () => void;
+  onToggleChat: () => void;
   onLeave: () => void;
 }
 
@@ -28,6 +31,7 @@ interface ControlButtonProps {
   active?: boolean;
   danger?: boolean;
   disabled?: boolean;
+  badge?: number;
   onClick: () => void;
   children: React.ReactNode;
 }
@@ -37,6 +41,7 @@ function ControlButton({
   active = false,
   danger = false,
   disabled = false,
+  badge = 0,
   onClick,
   children,
 }: ControlButtonProps) {
@@ -57,6 +62,11 @@ function ControlButton({
       className={`${base} ${style}`}
     >
       {children}
+      {badge > 0 && (
+        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-white text-[10px] font-semibold grid place-items-center">
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
       <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/80 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
         {label}
       </span>
@@ -70,10 +80,12 @@ export function MeetingControls({
   videoEnabled,
   isScreenSharing,
   screenShareSupported,
+  unreadCount = 0,
   onToggleAudio,
   onToggleVideo,
   onToggleScreenShare,
   onOpenSettings,
+  onToggleChat,
   onLeave,
 }: MeetingControlsProps) {
   return (
@@ -119,6 +131,15 @@ export function MeetingControls({
         ) : (
           <MonitorUp className="w-5 h-5" aria-hidden="true" />
         )}
+      </ControlButton>
+
+      <ControlButton
+        label="Chat"
+        active
+        badge={unreadCount}
+        onClick={onToggleChat}
+      >
+        <MessageSquare className="w-5 h-5" aria-hidden="true" />
       </ControlButton>
 
       <ControlButton label="Settings" active onClick={onOpenSettings}>

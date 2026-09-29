@@ -131,9 +131,14 @@ export async function getDisplayStream(): Promise<DisplayMediaResult> {
   }
   try {
     const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
+      // Exclude the current tab from the picker to prevent the infinite
+      // "hall of mirrors" feedback when a user shares the meeting tab itself.
+      // These hints are ignored by browsers that don't support them.
+      video: { frameRate: { ideal: 15, max: 30 } },
       audio: true,
-    });
+      selfBrowserSurface: 'exclude',
+      surfaceSwitching: 'include',
+    } as DisplayMediaStreamOptions);
     return { stream, hasAudio: stream.getAudioTracks().length > 0 };
   } catch (err) {
     const name = (err as DOMException)?.name ?? '';
