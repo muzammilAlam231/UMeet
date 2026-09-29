@@ -10,6 +10,7 @@ import {
   PhoneOff,
   Settings,
   MessageSquare,
+  SwitchCamera,
 } from 'lucide-react';
 
 interface MeetingControlsProps {
@@ -17,10 +18,12 @@ interface MeetingControlsProps {
   videoEnabled: boolean;
   isScreenSharing: boolean;
   screenShareSupported: boolean;
+  showFlipCamera?: boolean;
   unreadCount?: number;
   onToggleAudio: () => void;
   onToggleVideo: () => void;
   onToggleScreenShare: () => void;
+  onFlipCamera?: () => void;
   onOpenSettings: () => void;
   onToggleChat: () => void;
   onLeave: () => void;
@@ -80,10 +83,12 @@ export function MeetingControls({
   videoEnabled,
   isScreenSharing,
   screenShareSupported,
+  showFlipCamera = false,
   unreadCount = 0,
   onToggleAudio,
   onToggleVideo,
   onToggleScreenShare,
+  onFlipCamera,
   onOpenSettings,
   onToggleChat,
   onLeave,
@@ -132,6 +137,17 @@ export function MeetingControls({
           <MonitorUp className="w-5 h-5" aria-hidden="true" />
         )}
       </ControlButton>
+
+      {showFlipCamera && onFlipCamera && (
+        <ControlButton
+          label="Flip camera"
+          active
+          disabled={!videoEnabled}
+          onClick={onFlipCamera}
+        >
+          <SwitchCamera className="w-5 h-5" aria-hidden="true" />
+        </ControlButton>
+      )}
 
       <ControlButton
         label="Chat"

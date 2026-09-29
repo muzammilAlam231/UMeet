@@ -62,6 +62,7 @@ export interface UseMeetingResult {
   remoteScreenSharing: boolean;
   localSpeaking: boolean;
   remoteSpeaking: boolean;
+  facingMode: 'user' | 'environment';
   messages: ChatMessage[];
   unreadCount: number;
   sendMessage: (text: string) => void;
@@ -71,6 +72,7 @@ export interface UseMeetingResult {
   toggleScreenShare: () => Promise<void>;
   switchAudioDevice: (deviceId: string) => Promise<void>;
   switchVideoDevice: (deviceId: string) => Promise<void>;
+  flipCamera: () => Promise<void>;
   leave: () => void;
 }
 
@@ -103,6 +105,7 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
   const [remoteScreenSharing, setRemoteScreenSharing] = useState(false);
   const [localSpeaking, setLocalSpeaking] = useState(false);
   const [remoteSpeaking, setRemoteSpeaking] = useState(false);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -116,6 +119,7 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
     audioDeviceId: opts.audioDeviceId,
     videoDeviceId: opts.videoDeviceId,
   });
+  const facingModeRef = useRef<'user' | 'environment'>('user');
 
   const leave = useCallback(() => {
     if (leftRef.current) return;
@@ -389,6 +393,43 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
     }
   }, [videoEnabled]);
 
+  // Flip between front/back camera on mobile without needing a device list
+  // (labels are often blank on mobile, making the dropdown unusable).
+  const flipCamera = useCallback(async () => {
+    const manager = managerRef.current;
+    if (!manager) return;
+    const next = facingModeRef.current === 'user' ? 'environment' : 'user';
+    let acquired: MediaStream | null = null;
+    try {
+      const { stream } = await getLocalStream({
+        audio: false,
+        video: true,
+        videoFacingMode: next,
+      });
+      acquired = stream;
+    } catch {
+      setError({
+        title: 'Camera',
+        message: 'Could not switch camera. Your device may have only one.',
+      });
+      return;
+    }
+    const track = acquired.getVideoTracks()[0];
+    if (!track) return;
+    facingModeRef.current = next;
+    setFacingMode(next);
+    devicesRef.current.videoDeviceId = track.getSettings().deviceId;
+    track.enabled = videoEnabled;
+    if (manager.isSharingScreen()) {
+      manager.setCameraTrack(track);
+    } else {
+      await manager.replaceTrack(track);
+    }
+    // Re-attach local speaking detector? Audio unchanged, so skip. Refresh
+    // the preview by nudging state.
+    setLocalStream((prev) => prev);
+  }, [videoEnabled]);
+
   // Handle page/tab visibility: pause outbound video when hidden on mobile is
   // left to the browser; we simply keep tracks intact per spec.
 
@@ -411,6 +452,7 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
     remoteScreenSharing,
     localSpeaking,
     remoteSpeaking,
+    facingMode,
     messages,
     unreadCount,
     sendMessage,
@@ -420,6 +462,7 @@ export function useMeeting(opts: UseMeetingOptions): UseMeetingResult {
     toggleScreenShare,
     switchAudioDevice,
     switchVideoDevice,
+    flipCamera,
     leave,
   };
 }

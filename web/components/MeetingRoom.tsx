@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { ToastContainer, useToasts } from '@/components/Toast';
 import { useMeeting } from '@/hooks/useMeeting';
 import { listDevices, type DeviceList } from '@/lib/webrtc/devices';
-import { getCapabilities } from '@/lib/capabilities';
+import { getCapabilities, isMobile } from '@/lib/capabilities';
 import type { PreJoinResult } from '@/components/PreJoinScreen';
 
 interface MeetingRoomProps {
@@ -43,6 +43,10 @@ export function MeetingRoom({ roomId, prejoin, onEnded }: MeetingRoomProps) {
     () => (typeof window !== 'undefined' ? getCapabilities() : null),
     [],
   );
+  const mobile = useMemo(
+    () => (typeof window !== 'undefined' ? isMobile() : false),
+    [],
+  );
 
   const {
     phase,
@@ -57,6 +61,7 @@ export function MeetingRoom({ roomId, prejoin, onEnded }: MeetingRoomProps) {
     remoteScreenSharing,
     localSpeaking,
     remoteSpeaking,
+    facingMode,
     messages,
     unreadCount,
     sendMessage,
@@ -66,6 +71,7 @@ export function MeetingRoom({ roomId, prejoin, onEnded }: MeetingRoomProps) {
     toggleScreenShare,
     switchAudioDevice,
     switchVideoDevice,
+    flipCamera,
     leave,
   } = useMeeting({
     roomId,
@@ -196,7 +202,7 @@ export function MeetingRoom({ roomId, prejoin, onEnded }: MeetingRoomProps) {
           stream={localStream}
           name={`${prejoin.displayName} (you)`}
           muted
-          mirror={!isScreenSharing}
+          mirror={!isScreenSharing && facingMode === 'user'}
           isLocal
           videoEnabled={videoEnabled || isScreenSharing}
           audioEnabled={audioEnabled}
@@ -212,10 +218,12 @@ export function MeetingRoom({ roomId, prejoin, onEnded }: MeetingRoomProps) {
           videoEnabled={videoEnabled}
           isScreenSharing={isScreenSharing}
           screenShareSupported={!!caps?.screenShare}
+          showFlipCamera={mobile}
           unreadCount={unreadCount}
           onToggleAudio={toggleAudio}
           onToggleVideo={toggleVideo}
           onToggleScreenShare={() => void toggleScreenShare()}
+          onFlipCamera={() => void flipCamera()}
           onOpenSettings={() => setSettingsOpen(true)}
           onToggleChat={() => setChatOpen((v) => !v)}
           onLeave={leave}

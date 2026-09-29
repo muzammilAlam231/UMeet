@@ -5,6 +5,7 @@ export interface MediaConstraintsOptions {
   video?: boolean | MediaTrackConstraints;
   audioDeviceId?: string;
   videoDeviceId?: string;
+  videoFacingMode?: 'user' | 'environment';
 }
 
 export interface AcquiredMedia {
@@ -67,7 +68,11 @@ function buildConstraints(opts: MediaConstraintsOptions): MediaStreamConstraints
       ? false
       : {
           ...(typeof opts.video === 'object' ? opts.video : {}),
-          ...(opts.videoDeviceId ? { deviceId: { exact: opts.videoDeviceId } } : {}),
+          ...(opts.videoDeviceId
+            ? { deviceId: { exact: opts.videoDeviceId } }
+            : opts.videoFacingMode
+              ? { facingMode: { ideal: opts.videoFacingMode } }
+              : {}),
           width: { ideal: 1280 },
           height: { ideal: 720 },
         };
