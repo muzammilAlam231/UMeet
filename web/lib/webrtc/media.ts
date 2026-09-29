@@ -131,13 +131,17 @@ export async function getDisplayStream(): Promise<DisplayMediaResult> {
   }
   try {
     const stream = await navigator.mediaDevices.getDisplayMedia({
-      // Exclude the current tab from the picker to prevent the infinite
-      // "hall of mirrors" feedback when a user shares the meeting tab itself.
+      // Prevent the infinite "hall of mirrors" feedback:
+      // - selfBrowserSurface: 'exclude' hides the current tab from the picker.
+      // - monitorTypeSurfaces: 'exclude' removes whole-screen options, so the
+      //   user can't capture a monitor that contains the live meeting view
+      //   (which is what caused the recursion). Only windows/other tabs remain.
       // These hints are ignored by browsers that don't support them.
       video: { frameRate: { ideal: 15, max: 30 } },
       audio: true,
       selfBrowserSurface: 'exclude',
       surfaceSwitching: 'include',
+      monitorTypeSurfaces: 'exclude',
     } as DisplayMediaStreamOptions);
     return { stream, hasAudio: stream.getAudioTracks().length > 0 };
   } catch (err) {
