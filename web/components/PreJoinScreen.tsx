@@ -30,6 +30,9 @@ interface PreJoinScreenProps {
 export function PreJoinScreen({ roomId, onJoin }: PreJoinScreenProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  // Set when the stream is handed off to the meeting so unmount cleanup does
+  // not stop the tracks that are now in use by the live call.
+  const handedOffRef = useRef(false);
 
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [devices, setDevices] = useState<DeviceList>({
@@ -107,7 +110,10 @@ export function PreJoinScreen({ roomId, onJoin }: PreJoinScreenProps) {
     });
     return () => {
       cleanup();
-      stopStream(streamRef.current);
+      // Do not stop tracks that were handed off to the live meeting.
+      if (!handedOffRef.current) {
+        stopStream(streamRef.current);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -129,6 +135,8 @@ export function PreJoinScreen({ roomId, onJoin }: PreJoinScreenProps) {
 
   const handleJoin = () => {
     if (!streamRef.current) return;
+    // Mark the stream as owned by the meeting so cleanup does not kill it.
+    handedOffRef.current = true;
     onJoin({
       stream: streamRef.current,
       displayName: displayName.trim() || 'Guest',
